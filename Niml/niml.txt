@@ -1,0 +1,75 @@
+﻿document+
+meta { title: "Introducing NIML" }
+
+content+
+
+h1 NIML
++small Non-Indented Markup Language
+
+h3 Why NIML?
+
+md <
+Well, it's hard to write long, deeply nested documents, using an indented markup language.
+Is it easier to write long, deeply nested documents in NIML? Not sure, probably not, maybe. Try it.
+Ok then what are the benefits of NIML?
+
+1. It feels more like a text format, than a markup language.
+2. It's not indented, it fits nicely into a 80 character line.
+3. No mandatory closing tags, so it's slightly less verbose than HTML/XML.
+
+Which languages influenced NIML and what are their shortcomings:
+
+1. XML - document structure - deeply nested
+2. JSON - attributes - deeply nested, not well suited for handling text
+3. TOML - idea of flattening document tree - doesn't handle text that well
+4. Markdown - text first - doesn't handle tables and other HTML fancy things
+5. C# Razor - simple code/text switch using @ sign -
+6. HAML/YAML - bracketless tags, no closing tags - indented
+
+Beside combining features of other languages, is there anything unique to NIML?
+Yes, NIML features element indent processing instructions not found in any other well known markup language.
+
+Processing instructions, what are these?
+
+1. Append/prepend +/- signs to increase/decrease current level, eg.
+
+table+ //add table element and enter
+tr //add tr element to the last element (table)
++td //add td element to the last tr
++td
+tr //add tr to table element
+
+2. Use | to inline multiple elements
+
+tr+ | td 1 | td 2 | -
+
+3. Use @: @{el} to switch between text and markup
+
+This is how you would embed @a { href: "http://niml.org" } link @: into the text body.
+
+h3 Rules
+
+h4 Inline text - self examplatory
+
+h4 Attributes 
+
+p { class: "lead" } Lead text
+
+
+h3 What's next for NIML
+
+md @:
+1. Proof of concept
+2. Tightening spec
+
+-----------------
+Playing with mixing text and tags
+This is how you would embed a <a { href=”#” } link /> into the text.
+
+This is how you would embed a table: 
+<table+
+tr
++td <
+This is a long text with embedded <a { href=”#” } <
+link with lots of text written in
+multiple lines. /> Text may span few lines. Once text mode is entered using >, it needs to be closed with >.10 >-
