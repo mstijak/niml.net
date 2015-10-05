@@ -19,6 +19,8 @@ namespace Niml
             Value = v;
         }
 
+        public bool Raw { get; set; }
+
         public string Value { get; set; }
 
         public override XNode ToXNode()
@@ -48,12 +50,12 @@ namespace Niml
             Children.Add(child);
         }
 
-        internal void AddChildText(string value)
+        internal void AddChildText(string value, bool raw = false)
         {
-            if (String.IsNullOrWhiteSpace(value))
+            if (!raw && String.IsNullOrWhiteSpace(value))
                 return;
 
-            AddChild(new NText(value));
+            AddChild(new NText(value) { Raw = raw });
         }
 
         public XElement ToXElement()

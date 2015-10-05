@@ -23,76 +23,72 @@ namespace Niml
 
             var parents = new Stack<NElement>();
             parents.Push(dummyParent);
+            
+            NElement lastEl = dummyParent,
+                     lastElParent = dummyParent, 
+                     parentEl = null;
 
-            NElement currentElement = dummyParent;
-            NElement lastElement = dummyParent;
-
-            bool addToCurrent = false;
+            bool addToLast = false;
             string lastAttributeName = null;
 
             while (tr.Read())
             {
+                parentEl = lastEl != null && (tr.Nest || addToLast) ? lastEl : parents.Peek();
+
+                addToLast = false;
+
                 switch (tr.Token)
                 {
-                    case NimlToken.StartTag:
-                        lastElement = new NElement(tr.Value);
-                        if (addToCurrent)
-                        {
-                            currentElement.AddChild(lastElement);
-                            addToCurrent = false;
-                        }
-                        else
-                        {
-                            currentElement = lastElement;
-                            parents.Peek().AddChild(currentElement);
-                        }
+                    case NimlToken.Element:
+                        lastElParent = parentEl;
+                        lastEl = new NElement(tr.Value);
+                        parentEl.AddChild(lastEl);
                         break;
 
 
                     case NimlToken.InlineText:
                     case NimlToken.MultilineText:
-                        lastElement.AddChildText(tr.Value);
+                        lastEl.AddChildText(tr.Value);
                         break;
 
                     case NimlToken.Text:
                         var text = new NText(tr.Value);
-                        if (addToCurrent)
-                        {
-                            currentElement.AddChild(text);
-                            addToCurrent = false;
-                        }
-                        else
-                        {
-                            parents.Peek().AddChild(text);
-                        }
+                        parentEl.AddChild(text);
                         break;
 
-                    case NimlToken.IndentDecrease:
-                        if (parents.Count > 1)
-                            currentElement = parents.Pop();
+                    case NimlToken.ExitElement:
+                        if (parents.Count>0)
+                        {
+                            parents.Pop();
+                            lastEl = null;
+                        }
                         break;
 
                     case NimlToken.EnterElement:
-                        parents.Push(lastElement);
+                        parents.Push(lastEl);
                         break;
 
-                    case NimlToken.AddToLastElement:
-                        addToCurrent = true;
+                    case NimlToken.EnterLast:
+                        addToLast = true;
                         break;
 
+                    case NimlToken.CloseLast:
+                        lastEl = lastElParent;
+                        break;
+                    
                     case NimlToken.AttributeName:
                         lastAttributeName = tr.Value;
                         if (lastAttributeName == String.Empty)
                             break;
 
-                        if (lastElement.Attributes == null)
-                            lastElement.Attributes = new Dictionary<string, string>();
+                        if (lastEl.Attributes == null)
+                            lastEl.Attributes = new Dictionary<string, string>();
 
-                        lastElement.Attributes.Add(lastAttributeName, null);
+                        lastEl.Attributes.Add(lastAttributeName, null);
                         break;
 
                     case NimlToken.AttributeValue:
-                        lastElement.Attributes[lastAttributeName] = tr.Value;
+                        lastEl.Attributes[lastAttributeName] = tr.Value;
                         break;
                 }
             }

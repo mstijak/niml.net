@@ -14,7 +14,7 @@ namespace Niml
         public NimlTextReader(TextReader tr)
         {
             r = tr;
-            states.Push(State.Limbo);
+            PushState(State.Limbo);
         }
 
         enum State
@@ -34,43 +34,64 @@ namespace Niml
             LimboMultilineText
         }
 
-        NimlToken token;
+        struct StateEntry
+        {
+            public State State;
+            public bool PreserveWhiteSpace;
+            public bool Nest;
+            internal bool NewLine;
+            internal bool Raw;
+        }
 
-        public NimlToken Token { get { return token; } }
+        void PushState(State state, bool nest = false, bool preserveWhiteSpace = false)
+        {
+            states.Push(new StateEntry
+            {
+                State = state,
+                Nest = nest,
+                PreserveWhiteSpace = preserveWhiteSpace
+            });
+        }
+        
+        Stack<StateEntry> states = new Stack<StateEntry>();
+        StateEntry state;
 
-        Queue<NimlToken> futureTokens = new Queue<NimlToken>();
-        Stack<State> states = new Stack<State>();        
+        char prevChar, c = '\0';
+
+        void RepeatLast()
+        {
+            c = prevChar;
+            pos--;
+        }
 
         public bool Read()
         {
-            if (futureTokens.Count > 0)
-            {
-                token = futureTokens.Dequeue();
-                return true;
-            }
-
-            char prevChar, c = '\0';
-
             while (true)
             {
                 prevChar = c;
                 if (!GetNextChar(out c))
                     return false;
 
-                var state = states.Peek();
-                switch (state)
+                if (c == '\r')
+                {
+                    c = prevChar;
+                    continue;
+                }
+
+                state = states.Peek();
+                switch (state.State)
                 {
                     case State.Limbo:
                         switch (c)
                         {
                             case '+':
-                                return Report(NimlToken.AddToLastElement);
+                                return Report(NimlToken.EnterElement);
 
                             case '-':
-                                return Report(NimlToken.IndentDecrease);
+                                return Report(NimlToken.ExitElement);
 
                             case '<':
-                                states.Push(State.LimboMultilineText);
+                                PushState(State.LimboMultilineText);
                                 continue;
 
                             default:
@@ -78,7 +99,7 @@ namespace Niml
                                 {
                                     buffer.Clear();
                                     buffer.Append(c);
-                                    states.Push(State.TagName);
+                                    PushState(State.TagName);
                                 }
                                 continue;
                         }
@@ -86,21 +107,20 @@ namespace Niml
                     case State.TagName:
                         switch (c)
                         {
-                            case ' ':                                
+                            case ' ':
                                 states.Pop();
-                                states.Push(State.TagBody);
-                                return Report(NimlToken.StartTag);
+                                PushState(State.TagBody);
+                                return Report(NimlToken.Element);
 
-                            case '\r':
                             case '\n':
                                 states.Pop();
-                                return Report(NimlToken.StartTag);
+                                return Report(NimlToken.Element);
 
                             case '+':
                                 states.Pop();
-                                states.Push(State.TagBody);
-                                futureTokens.Enqueue(NimlToken.EnterElement);
-                                return Report(NimlToken.StartTag);                                
+                                PushState(State.TagBody);
+                                RepeatLast();
+                                return Report(NimlToken.Element);
 
                             default:
                                 buffer.Append(c);
@@ -109,39 +129,49 @@ namespace Niml
 
                     case State.TagBody:
 
-                        if (prevChar=='/' && c == '>')
+                        if (prevChar == '/' && c == '>')
                         {
                             states.Pop();
-                            continue;
-                        } 
+                            return Report(NimlToken.CloseLast);
+                        }
 
                         switch (c)
                         {
                             case ' ':
                                 continue;
 
-                            case '\r':
+                            case '+':
+                                return Report(NimlToken.EndElement);
+
                             case '\n':
                                 states.Pop();
                                 continue;
 
                             case '<':
                                 states.Pop();
-                                states.Push(State.MultilineText);
+                                PushState(State.MultilineText);
                                 buffer.Clear();
                                 continue;
 
                             case '{':
-                                states.Push(State.Attributes);
+                                PushState(State.Attributes);
                                 continue;
 
                             case '|':
                                 states.Pop();
                                 continue;
 
+                            case '\"':
+                                states.Pop();
+                                PushState(State.InlineText);
+                                PushState(State.QuotedText);
+                                buffer.Clear();
+                                buffer.Append(c);
+                                continue;
+
                             default:
                                 states.Pop();
-                                states.Push(State.InlineText);
+                                PushState(State.InlineText);
                                 buffer.Clear();
                                 buffer.Append(c);
                                 continue;
@@ -152,21 +182,20 @@ namespace Niml
                         if (prevChar == '/' && c == '>')
                         {
                             states.Pop();
+                            PushState(State.TagBody);
                             --buffer.Length;
-                            if (buffer.Length > 0)
-                                return Report(NimlToken.InlineText);
-                            continue;
+                            RepeatLast();
+                            return Report(NimlToken.InlineText);
                         }
 
                         switch (c)
                         {
-                            case '\r':
                             case '\n':
                             case '|':
                                 states.Pop();
                                 if (buffer.Length > 0)
                                     return Report(NimlToken.InlineText);
-                                    
+
                                 continue;
 
                             default:
@@ -176,30 +205,56 @@ namespace Niml
 
                     case State.LimboMultilineText:
                     case State.MultilineText:
-                        if (prevChar == '<' && Char.IsLetter(c))
-                        {
-                            --buffer.Length;
-
-                            Report(state == State.LimboMultilineText ? NimlToken.Text : NimlToken.MultilineText);
-
-                            buffer.Append(c);
-                            states.Push(State.TagName);
-                            return true;
-                        }
 
                         switch (c)
                         {
+                            case ':':
+                                if (buffer.Length == 0 && !state.NewLine)
+                                {
+                                    state.Raw = true;
+                                    continue;
+                                }
+                                break;
+
+                            case '\n':
+                                if (buffer.Length == 0 && !state.NewLine)
+                                {
+                                    state.NewLine = true;
+                                    continue;
+                                }
+                                break;
+
+                            case '"':
+                                if (buffer.Length == 0 && !state.NewLine)
+                                {
+                                    PushState(State.QuotedText);
+                                    continue;
+                                }
+                                break;
+
                             case '>':
-                                states.Pop();
-                                if (buffer.Length > 0)
-                                    return Report(state == State.LimboMultilineText ? NimlToken.Text : NimlToken.MultilineText);
-
-                                continue;
-
-                            default:
-                                buffer.Append(c);
-                                continue;
+                                if (prevChar == '\n' || prevChar == '"')
+                                {
+                                    buffer.Length--;
+                                    states.Pop();
+                                    if (buffer.Length > 0)
+                                        return Report(state.State == State.LimboMultilineText ? NimlToken.Text : NimlToken.MultilineText);
+                                    continue;
+                                }
+                                break;
                         }
+
+                        if (prevChar == '<' && Char.IsLetter(c))
+                        {
+                            --buffer.Length;
+                            state.PreserveWhiteSpace = true;
+                            PushState(State.TagName, nest: true);
+                            RepeatLast();
+                            return Report(state.State == State.LimboMultilineText ? NimlToken.Text : NimlToken.MultilineText);
+                        }
+
+                        buffer.Append(c);
+                        continue;
 
                     case State.Attributes:
                         switch (c)
@@ -217,9 +272,8 @@ namespace Niml
                             default:
                                 buffer.Clear();
                                 buffer.Append(c);
-                                states.Push(State.AttributeName);
+                                PushState(State.AttributeName);
                                 continue;
-
                         }
 
                     case State.AttributeName:
@@ -227,7 +281,7 @@ namespace Niml
                         {
                             case ':':
                                 states.Pop();
-                                states.Push(State.AttributeValue);
+                                PushState(State.AttributeValue);
                                 return Report(NimlToken.AttributeName);
 
                             case ',':
@@ -253,11 +307,17 @@ namespace Niml
                     case State.AttributeValue:
                         switch (c)
                         {
-                            case ',':
-                                states.Pop();
-                                return Report(NimlToken.AttributeValue);
-
                             case ' ':
+                                if (buffer.Length > 0)
+                                {
+                                    states.Pop();
+                                    return Report(NimlToken.AttributeValue);
+                                }
+                                continue;
+
+                            case ',':
+                            case '\n':
+                            case '\t':
                                 states.Pop();
                                 return Report(NimlToken.AttributeValue);
 
@@ -269,7 +329,7 @@ namespace Niml
                             default:
                                 if (buffer.Length == 0 && c == '\"')
                                 {
-                                    states.Push(State.QuotedText);
+                                    PushState(State.QuotedText);
                                     continue;
                                 }
                                 buffer.Append(c);
@@ -279,6 +339,11 @@ namespace Niml
                     case State.QuotedText:
                         switch (c)
                         {
+                            case '\n':
+                                if (buffer.Length == 0)
+                                    continue;
+                                break;
+
                             case '"':
                                 states.Pop();
                                 continue;
@@ -287,17 +352,28 @@ namespace Niml
                                 buffer.Append(c);
                                 continue;
                         }
+
+                        if (buffer.Length > 0 && prevChar == '"')
+                        {
+                            states.Pop();
+                            RepeatLast();
+                            continue;
+                        }
+
+                        buffer.Append(c);
+                        continue;
                 }
             }
         }
 
         readonly StringBuilder buffer = new StringBuilder();
 
-        public String Value { get; private set; }
+        public string Value { get; private set; }
 
         char[] rb = new char[1024];
         int pos = 0;
         int cnt = 0;
+        bool fakeLineReported = false;
 
         bool GetNextChar(out char c)
         {
@@ -315,16 +391,33 @@ namespace Niml
                 return GetNextChar(out c);
             }
 
+            if (!fakeLineReported)
+            {
+                fakeLineReported = true;
+                c = '\n';
+                return true;
+            }
+
             c = ' ';
             return false;
         }
 
         bool Report(NimlToken token)
         {
-            this.token = token;
-            this.Value = buffer.ToString();
-            buffer.Clear();
+            Token = token;
+            Nest = state.Nest;
+            Raw = state.Raw;
+
+            var l = buffer.Length;
+            if (l > 0 && state.PreserveWhiteSpace && buffer[buffer.Length - 1] == ' ')
+                l--;
+            Value = buffer.ToString(0, l);
+            buffer.Clear();            
             return true;
         }
+
+        public bool Nest { get; private set; }
+        public bool Raw { get; private set; }
+        public NimlToken Token { get; private set; }
     }
 }

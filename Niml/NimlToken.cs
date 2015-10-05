@@ -10,12 +10,14 @@ namespace Niml
     {
         None,
 
-        StartTag,        
+        Element,
         EndElement,
 
         EnterElement,
-        AddToLastElement,
-        IndentDecrease,
+        ExitElement,
+
+        EnterLast,
+        CloseLast,
 
         InlineText,
         MultilineText,
