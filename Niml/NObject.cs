@@ -10,6 +10,13 @@ namespace Niml
     public abstract class NObject
     {
         public abstract XNode ToXNode();
+        public abstract NimlObjectType ObjectType { get; }
+    }
+
+    public enum NimlObjectType
+    {
+        Element,
+        Text
     }
 
     public class NText : NObject
@@ -26,6 +33,14 @@ namespace Niml
         public override XNode ToXNode()
         {
             return new XText(Value);
+        }
+
+        public override NimlObjectType ObjectType
+        {
+            get
+            {
+                return NimlObjectType.Text;
+            }
         }
     }
 
@@ -56,6 +71,14 @@ namespace Niml
                 return;
 
             AddChild(new NText(value) { Raw = raw });
+        }
+
+        public override NimlObjectType ObjectType
+        {
+            get
+            {
+                return NimlObjectType.Element;
+            }
         }
 
         public XElement ToXElement()

@@ -48,12 +48,11 @@ namespace Niml
 
                     case NimlToken.InlineText:
                     case NimlToken.MultilineText:
-                        lastEl.AddChildText(tr.Value);
+                        lastEl.AddChildText(tr.Value, raw: tr.Raw);
                         break;
 
-                    case NimlToken.Text:
-                        var text = new NText(tr.Value);
-                        parentEl.AddChild(text);
+                    case NimlToken.Text:                        
+                        parentEl.AddChildText(tr.Value, raw: tr.Raw);
                         break;
 
                     case NimlToken.ExitElement:

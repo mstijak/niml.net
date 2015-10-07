@@ -409,7 +409,7 @@ namespace Niml
             Raw = state.Raw;
 
             var l = buffer.Length;
-            if (l > 0 && state.PreserveWhiteSpace && buffer[buffer.Length - 1] == ' ')
+            if (l > 0 && !state.PreserveWhiteSpace && buffer[buffer.Length - 1] == ' ')
                 l--;
             Value = buffer.ToString(0, l);
             buffer.Clear();            
