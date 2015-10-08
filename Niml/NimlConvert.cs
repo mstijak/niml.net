@@ -23,9 +23,9 @@ namespace Niml
 
             var parents = new Stack<NElement>();
             parents.Push(dummyParent);
-            
+
             NElement lastEl = dummyParent,
-                     lastElParent = dummyParent, 
+                     lastElParent = dummyParent,
                      parentEl = null;
 
             bool addToLast = false;
@@ -51,7 +51,7 @@ namespace Niml
                         lastEl.AddChildText(tr.Value, raw: tr.Raw);
                         break;
 
-                    case NimlToken.Text:                        
+                    case NimlToken.Text:
                         parentEl.AddChildText(tr.Value, raw: tr.Raw);
                         break;
 
@@ -74,7 +74,7 @@ namespace Niml
                     case NimlToken.CloseLast:
                         lastEl = lastElParent;
                         break;
-                    
+
                     case NimlToken.AttributeName:
                         lastAttributeName = tr.Value;
                         if (lastAttributeName == String.Empty)
@@ -101,12 +101,13 @@ namespace Niml
             return c.Convert();
         }
 
-        public static XDocument ToXDocument(TextReader r)
+        public static XDocument ToXDocument(TextReader r, String xmlNs = null)
         {
             var c = new NimlConvert(r);
+            var nodes = c.Convert();
             var doc = new XDocument();
-            foreach (var x in c.Convert())
-                doc.Add(x.ToXNode());
+            foreach (var x in nodes)
+                doc.Add(x.ToXNode(xmlNs));
             return doc;
         }
     }

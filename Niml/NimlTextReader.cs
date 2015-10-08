@@ -52,7 +52,7 @@ namespace Niml
                 PreserveWhiteSpace = preserveWhiteSpace
             });
         }
-        
+
         Stack<StateEntry> states = new Stack<StateEntry>();
         StateEntry state;
 
@@ -141,7 +141,7 @@ namespace Niml
                                 continue;
 
                             case '+':
-                                return Report(NimlToken.EndElement);
+                                return Report(NimlToken.EnterElement);
 
                             case '\n':
                                 states.Pop();
@@ -412,7 +412,7 @@ namespace Niml
             if (l > 0 && !state.PreserveWhiteSpace && buffer[buffer.Length - 1] == ' ')
                 l--;
             Value = buffer.ToString(0, l);
-            buffer.Clear();            
+            buffer.Clear();
             return true;
         }
 

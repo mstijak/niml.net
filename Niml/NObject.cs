@@ -9,7 +9,7 @@ namespace Niml
 {
     public abstract class NObject
     {
-        public abstract XNode ToXNode();
+        public abstract XNode ToXNode(String xmlNs = null);
         public abstract NimlObjectType ObjectType { get; }
     }
 
@@ -30,7 +30,7 @@ namespace Niml
 
         public string Value { get; set; }
 
-        public override XNode ToXNode()
+        public override XNode ToXNode(String xmlNs = null)
         {
             return new XText(Value);
         }
@@ -81,9 +81,14 @@ namespace Niml
             }
         }
 
-        public XElement ToXElement()
+        public XElement ToXElement(string xmlNs)
         {
-            var el = new XElement(XName.Get(Name));
+            var ns = xmlNs;
+
+            if (Attributes != null && !Attributes.TryGetValue("xmlns", out ns))
+                ns = xmlNs;
+
+            var el = new XElement(ns != null ? XName.Get(Name, ns) : XName.Get(Name));
 
             if (Attributes != null)
                 foreach (var attr in Attributes)
@@ -91,20 +96,20 @@ namespace Niml
 
             if (Children != null)
                 foreach (var item in Children)
-                    el.Add(item.ToXNode());
+                    el.Add(item.ToXNode(ns));
 
             return el;
         }
 
-        public override XNode ToXNode()
+        public override XNode ToXNode(string xmlNs)
         {
-            return ToXElement();
+            return ToXElement(xmlNs);
         }
     }
 
     public enum NObjectType
     {
-        Text, 
-        Element        
+        Text,
+        Element
     }
 }
